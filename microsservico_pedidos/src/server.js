@@ -1,161 +1,67 @@
-const fastify = require('fastify')({ logger: true })
-const { PrismaClient } = require('@prisma/client')
-const axios = require('axios')
+import Fastify from 'fastify';
+import { PrismaClient } from '@prisma/client';
+import axios from 'axios';
 
-const prisma = new PrismaClient()
+const fastify = Fastify({ logger: true });
+const prisma = new PrismaClient();
 
-// ==============================
-// TESTE
-// ==============================
+// ROTA DE TESTE - ACESSE http://localhost:3004/ PARA VER SE ESTÁ VIVO
 fastify.get('/', async () => {
-  return { msg: 'API de pedidos rodando 🚀' }
-})
+  return { msg: 'MS Pedidos rodando na porta 3004 🚀' };
+});
 
-// ==============================
-// GET - LISTAR TODOS
-// ==============================
-fastify.get('/pedidos', async () => {
-  return prisma.pedido.findMany({
-    include: { itens: true }
-  })
-})
-
-// ==============================
-// GET BY STATUS
-// ==============================
-fastify.get('/pedidos/status/:status', async (req) => {
-  const { status } = req.params
-
-  return prisma.pedido.findMany({
-    where: { status }
-  })
-})
-
-// ==============================
-// GET BY STATUS + USER
-// ==============================
-fastify.get('/pedidos/user/:userId/status/:status', async (req) => {
-  const { userId, status } = req.params
-
-  return prisma.pedido.findMany({
-    where: {
-      userId: Number(userId),
-      status
-    }
-  })
-})
-
-// ==============================
-// TRACKING (status do pedido)
-// ==============================
-fastify.get('/pedidos/:id/tracking', async (req, reply) => {
-  const { id } = req.params
-
-  const pedido = await prisma.pedido.findUnique({
-    where: { id: Number(id) }
-  })
-
-  if (!pedido) {
-    return reply.code(404).send({ error: 'Pedido não encontrado' })
-  }
-
-  return {
-    pedidoId: pedido.id,
-    status: pedido.status
-  }
-})
-
-
-fastify.post('/pedidos', async (req, reply) => {
-  const { userId, total } = req.body
-
-  const pedido = await prisma.pedido.create({
-    data: {
-      userId,
-      total,
-      status: "CRIADO"
-    }
-  })
-
-  // integração com pagamento
+// LISTAR POR USUÁRIO (A PUXADA QUE VOCÊ PEDIU)
+fastify.get('/pedidos/usuario/:idUsuario', async (req, reply) => {
+  const { idUsuario } = req.params;
   try {
-    await axios.post('http://localhost:3003/pagamentos', {
-      orderId: pedido.id,
-      valor: pedido.total
-    })
-  } catch (error) {
-    console.error("Erro ao enviar para pagamento:", error.message)
+    const pedidos = await prisma.pedido.findMany({
+      where: { userId: Number(idUsuario) },
+      include: { itens: true }
+    });
+    return pedidos.length > 0 ? pedidos : reply.code(404).send({ msg: "Sem pedidos" });
+  } catch (err) {
+    return reply.code(500).send({ error: err.message });
   }
+});
 
-  return pedido
-})
+// CRIAR PEDIDO (CORRIGIDO: PRECO E USERID)
+fastify.post('/pedidos', async (req, reply) => {
+  const { userId, total, itens } = req.body;
+  try {
+    const pedido = await prisma.pedido.create({
+      data: {
+        userId: Number(userId),
+        total: parseFloat(total),
+        status: "CRIADO",
+        itens: {
+          create: itens.map(item => ({
+            produtoId: Number(item.produtoId),
+            quantidade: Number(item.quantidade),
+            preco: parseFloat(item.precoUnitario || item.preco) // RESOLVE O ERRO 'PRECO IS MISSING'
+          }))
+        }
+      },
+      include: { itens: true }
+    });
 
-fastify.put('/pedidos/:id/status', async (req, reply) => {
-  const { id } = req.params
-  const { status } = req.body
+    // INTEGRAÇÃO COM PAGAMENTOS (PORTA 3003)
+    try {
+      await axios.post('http://localhost:3003/pagamentos', { orderId: pedido.id, valor: pedido.total });
+    } catch (e) { console.log("Aviso: MS Pagamentos Offline"); }
 
-  return prisma.pedido.update({
-    where: { id: Number(id) },
-    data: { status }
-  })
-})
+    return reply.code(201).send(pedido);
+  } catch (error) {
+    return reply.code(500).send({ error: error.message });
+  }
+});
 
-
-fastify.put('/pedidos/:id/cancel', async (req, reply) => {
-  const { id } = req.params
-
-  return prisma.pedido.update({
-    where: { id: Number(id) },
-    data: { status: "CANCELADO" }
-  })
-})
-
-fastify.patch('/pedidos/:id/status', async (req) => {
-  const { id } = req.params
-  const { status } = req.body
-
-  return prisma.pedido.update({
-    where: { id: Number(id) },
-    data: { status }
-  })
-})
-
-
-// GET endereço
-fastify.get('/enderecos/:userId', async (req) => {
-  const { userId } = req.params
-
-  return prisma.endereco.findMany({
-    where: { userId: Number(userId) }
-  })
-})
-
-// POST endereço
-fastify.post('/enderecos', async (req) => {
-  return prisma.endereco.create({
-    data: req.body
-  })
-})
-
-// PUT endereço
-fastify.put('/enderecos/:id', async (req) => {
-  const { id } = req.params
-
-  return prisma.endereco.update({
-    where: { id: Number(id) },
-    data: req.body
-  })
-})
-
-// DELETE endereço
-fastify.delete('/enderecos/:id', async (req) => {
-  const { id } = req.params
-
-  return prisma.endereco.delete({
-    where: { id: Number(id) }
-  })
-})
-
-fastify.listen({ port: 3004 }, () => {
-  console.log('Servidor rodando na porta 3004 🚀')
-})
+// INICIALIZAÇÃO NA PORTA CORRETA (3004)
+const start = async () => {
+  try {
+    await fastify.listen({ port: 3004, host: '0.0.0.0' });
+    console.log('✅ Microsserviço de PEDIDOS ativo em: http://localhost:3004');
+  } catch (err) {
+    process.exit(1);
+  }
+};
+start();
