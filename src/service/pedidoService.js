@@ -9,7 +9,7 @@ export const createPedido = async (data, token) => {
   // 1. REGRA 1: Valida o usuário no microsserviço de Usuários do colega
   try {
     // Substitua pelo IP real da máquina dele se não for localhost
-    const urlUsuarios = `http://localhost:3000/usuarios/${userId}`;
+    const urlUsuarios = `http://localhost:3005/usuarios/${userId}`;
     
     await axios.get(urlUsuarios, {
       headers: { Authorization: token } 
