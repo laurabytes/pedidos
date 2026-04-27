@@ -1,13 +1,10 @@
 import * as pedidoController from '../controllers/pedidoController.js';
 
 export async function pedidoRoutes(fastify) {
-  // CRUD PADRÃO
-  fastify.post('/pedidos', pedidoController.criar);           // Create
-  fastify.get('/pedidos', pedidoController.listarTodos);      // Read All
-  fastify.get('/pedidos/:id', pedidoController.buscarPorId);  // Read One
-  fastify.patch('/pedidos/:id/status', pedidoController.atualizarStatus); // Update
-  fastify.delete('/pedidos/:id', pedidoController.deletar);   // Delete
-
-  // BUSCA ESPECÍFICA
+  fastify.post('/pedidos', pedidoController.criar);
+  fastify.get('/pedidos', pedidoController.listarTodos);
+  fastify.get('/pedidos/:id', pedidoController.buscarPorId);
   fastify.get('/pedidos/usuario/:idUsuario', pedidoController.listarPorUsuario);
+  fastify.patch('/pedidos/:id/status', pedidoController.atualizarStatus);
+  fastify.delete('/pedidos/:id', pedidoController.deletar);
 }

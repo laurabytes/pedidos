@@ -5,7 +5,9 @@ const prisma = new PrismaClient();
 
 export const createPedido = async (data) => {
   const { userId, total, itens } = data;
-  return await prisma.pedido.create({
+
+  // Cria o pedido e os itens vinculados
+  const novoPedido = await prisma.pedido.create({
     data: {
       userId: Number(userId),
       total: parseFloat(total),
@@ -20,6 +22,19 @@ export const createPedido = async (data) => {
     },
     include: { itens: true }
   });
+
+  // INTEGRAÇÃO: Envia o orderId para o MS de Pagamentos (Porta 3003)
+  try {
+    await axios.post('http://localhost:3003/pagamentos', { 
+      orderId: novoPedido.id, 
+      valor: novoPedido.total 
+    });
+    console.log(`Integração: Pedido ${novoPedido.id} enviado para pagamentos.`);
+  } catch (error) {
+    console.error("Erro na integração de pagamentos:", error.message);
+  }
+
+  return novoPedido;
 };
 
 export const getAllPedidos = async () => {
@@ -48,7 +63,7 @@ export const updateStatus = async (id, status) => {
 };
 
 export const deletePedido = async (id) => {
-  // O SQLite exige deletar os itens primeiro ou configurar Cascade no Prisma
+  // Deleta itens primeiro devido à restrição de chave estrangeira
   await prisma.pedidoItem.deleteMany({ where: { pedidoId: Number(id) } });
   return await prisma.pedido.delete({ where: { id: Number(id) } });
 };

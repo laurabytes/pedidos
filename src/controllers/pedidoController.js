@@ -1,4 +1,4 @@
-import * as pedidoService from '../service/pedidoService.js';
+import * as pedidoService from '../services/pedidoService.js';
 
 export const criar = async (req, reply) => {
   try {
@@ -20,8 +20,7 @@ export const buscarPorId = async (req, reply) => {
 };
 
 export const listarPorUsuario = async (req, reply) => {
-  const pedidos = await pedidoService.getPedidosByUser(req.params.idUsuario);
-  return pedidos;
+  return await pedidoService.getPedidosByUser(req.params.idUsuario);
 };
 
 export const atualizarStatus = async (req) => {
@@ -31,7 +30,7 @@ export const atualizarStatus = async (req) => {
 export const deletar = async (req, reply) => {
   try {
     await pedidoService.deletePedido(req.params.id);
-    return { msg: "Pedido deletado com sucesso" };
+    return { msg: "Pedido deletado" };
   } catch (error) {
     return reply.code(500).send({ error: error.message });
   }
