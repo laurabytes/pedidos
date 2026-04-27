@@ -3,10 +3,23 @@ import axios from 'axios';
 
 const prisma = new PrismaClient();
 
-export const createPedido = async (data) => {
+export const createPedido = async (data, token) => {
   const { userId, total, itens } = data;
 
-  // Cria o pedido e os itens vinculados
+  // 1. REGRA 1: Valida o usuário no microsserviço de Usuários do colega
+  try {
+    // Substitua pelo IP real da máquina dele se não for localhost
+    const urlUsuarios = `http://localhost:3000/usuarios/${userId}`;
+    
+    await axios.get(urlUsuarios, {
+      headers: { Authorization: token } 
+    });
+  } catch (error) {
+    // Se o MS de Usuários retornar erro (401 ou 404), o pedido é cancelado aqui
+    throw new Error("Usuário não autorizado ou inexistente no sistema de Usuários.");
+  }
+
+  // 2. Cria o pedido no seu banco SQLite local
   const novoPedido = await prisma.pedido.create({
     data: {
       userId: Number(userId),
@@ -23,20 +36,21 @@ export const createPedido = async (data) => {
     include: { itens: true }
   });
 
-  // INTEGRAÇÃO: Envia o orderId para o MS de Pagamentos (Porta 3003)
+  // 3. REGRA 1: Integração com Pagamentos (Porta 3003)
   try {
     await axios.post('http://localhost:3003/pagamentos', { 
       orderId: novoPedido.id, 
       valor: novoPedido.total 
     });
-    console.log(`Integração: Pedido ${novoPedido.id} enviado para pagamentos.`);
+    console.log(`Pedido ${novoPedido.id} enviado para pagamento.`);
   } catch (error) {
-    console.error("Erro na integração de pagamentos:", error.message);
+    console.error("Aviso: Microsserviço de Pagamentos offline.");
   }
 
   return novoPedido;
 };
 
+// Funções padrão do CRUD
 export const getAllPedidos = async () => {
   return await prisma.pedido.findMany({ include: { itens: true } });
 };
@@ -63,7 +77,6 @@ export const updateStatus = async (id, status) => {
 };
 
 export const deletePedido = async (id) => {
-  // Deleta itens primeiro devido à restrição de chave estrangeira
   await prisma.pedidoItem.deleteMany({ where: { pedidoId: Number(id) } });
   return await prisma.pedido.delete({ where: { id: Number(id) } });
 };

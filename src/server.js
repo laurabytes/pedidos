@@ -3,7 +3,6 @@ import { pedidoRoutes } from './routes/pedidoRoutes.js';
 
 const fastify = Fastify({ logger: true });
 
-// Registra as rotas
 fastify.register(pedidoRoutes);
 
 fastify.get('/', async () => {
