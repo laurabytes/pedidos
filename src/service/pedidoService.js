@@ -6,20 +6,20 @@ const prisma = new PrismaClient();
 export const createPedido = async (data, token) => {
   const { userId, total, itens } = data;
 
-  // 1. REGRA 1: Valida o usuário no microsserviço de Usuários do colega
+  // Valida usuário no microsserviço da mimi
   try {
-    // Substitua pelo IP real da máquina dele se não for localhost
+    
     const urlUsuarios = `http://localhost:3005/usuarios/${userId}`;
     
     await axios.get(urlUsuarios, {
       headers: { Authorization: token } 
     });
   } catch (error) {
-    // Se o MS de Usuários retornar erro (401 ou 404), o pedido é cancelado aqui
+    // Se o retorno de Usuários retornar erro (401 ou 404), o pedido é cancelado aqui
     throw new Error("Usuário não autorizado ou inexistente no sistema de Usuários.");
   }
 
-  // 2. Cria o pedido no seu banco SQLite local
+  //  Cria o pedido 
   const novoPedido = await prisma.pedido.create({
     data: {
       userId: Number(userId),
@@ -36,7 +36,7 @@ export const createPedido = async (data, token) => {
     include: { itens: true }
   });
 
-  // 3. REGRA 1: Integração com Pagamentos (Porta 3003)
+  //  Integração com Pagamentos
   try {
     await axios.post('http://localhost:3003/pagamentos', { 
       orderId: novoPedido.id, 
@@ -50,7 +50,7 @@ export const createPedido = async (data, token) => {
   return novoPedido;
 };
 
-// Funções padrão do CRUD
+// padrão do CRud
 export const getAllPedidos = async () => {
   return await prisma.pedido.findMany({ include: { itens: true } });
 };
